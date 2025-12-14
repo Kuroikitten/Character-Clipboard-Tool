@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Character Clipboard Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 100%;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+            gap: 15px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .info {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(var(--min-card-width), 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        /* Grid min-widths for each zoom level */
+        .zoom-1 .grid { --min-card-width: 136px; }
+        .zoom-2 .grid { --min-card-width: 204px; }
+        .zoom-3 .grid { --min-card-width: 272px; }
+        .zoom-4 .grid { --min-card-width: 363px; }
+        .zoom-5 .grid { --min-card-width: 484px; }
+
+        .character-card {
+            position: relative;
+            cursor: pointer;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            justify-self: center;
+        }
+
+        /* Zoom levels */
+        .zoom-1 .character-card { width: 136px; height: 181px; }
+        .zoom-2 .character-card { width: 204px; height: 272px; }
+        .zoom-3 .character-card { width: 272px; height: 363px; }
+        .zoom-4 .character-card { width: 363px; height: 484px; }
+        .zoom-5 .character-card { width: 484px; height: 645px; }
+
+        .character-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        }
+
+        .character-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .character-card.copied {
+            animation: copyFlash 0.6s ease;
+        }
+
+        @keyframes copyFlash {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); box-shadow: 0 0 20px rgba(34, 197, 94, 0.6); }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #22c55e;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+            font-weight: 600;
+            opacity: 0;
+            transform: translateX(400px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            font-size: 18px;
+            padding: 40px;
+        }
+
+        .error {
+            background: #ef4444;
+            color: white;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .zoom-controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 999;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .zoom-btn:hover {
+            background: #5568d3;
+            transform: scale(1.1);
+        }
+
+        .zoom-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: scale(1);
+        }
+
+        .zoom-level {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 60px;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .surprise-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            z-index: 999;
+        }
+
+        .surprise-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.6);
+        }
+
+        .surprise-btn:active {
+            transform: translateY(0);
+        }
+
+        .surprise-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: translateY(0);
+        }
+
+        .surprise-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .surprise-overlay.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .surprise-image-container {
+            position: relative;
+            padding: 20px;
+        }
+
+        .surprise-image {
+            max-width: 500px;
+            max-height: 700px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            transition: transform 0.1s ease;
+        }
+
+        .surprise-image.final {
+            animation: finalReveal 0.5s ease;
+            border: 5px solid #764ba2;
+            box-shadow: 0 0 40px rgba(118, 75, 162, 0.8), 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        @keyframes finalReveal {
+            0% { transform: scale(0.8); opacity: 0; }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .surprise-text {
+            position: absolute;
+            top: -50px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 32px;
+            font-weight: 700;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+        }
+
+        .help-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 45px;
+            height: 45px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            z-index: 1000;
+        }
+
+        .help-btn:hover {
+            background: #5568d3;
+            transform: scale(1.1);
+        }
+
+        .trim-btn {
+            position: fixed;
+            top: 20px;
+            left: 80px;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            z-index: 1000;
+        }
+
+        .trim-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .trim-btn.confirmed {
+            background: #22c55e;
+            animation: confirmPulse 0.6s ease;
+        }
+
+        @keyframes confirmPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .modal h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .modal h3 {
+            color: #667eea;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .modal p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .modal ul {
+            color: #666;
+            line-height: 1.8;
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        .modal code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            color: #667eea;
+        }
+
+        .close-modal-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 35px;
+            height: 35px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .close-modal-btn:hover {
+            background: #dc2626;
+            transform: scale(1.1);
+        }
+
+        .trim-input-container {
+            margin: 20px 0;
+        }
+
+        .trim-input-container label {
+            display: block;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .trim-input-container textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.2s ease;
+        }
+
+        .trim-input-container textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .trim-input-container .help-text {
+            font-size: 13px;
+            color: #999;
+            margin-top: 8px;
+            font-style: italic;
+        }
+
+        .confirm-trim-btn {
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .confirm-trim-btn:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Character Clipboard Tool</h1>
+        
+        <div class="controls">
+            <button id="selectFolder">Select Character Folder</button>
+        </div>
+
+        <div class="info" id="info">
+            Click the button to select your character folder
+        </div>
+
+        <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="notification" id="notification">✓ Copied to clipboard!</div>
+
+    <div class="zoom-controls">
+        <button class="zoom-btn" id="zoomOut" title="Zoom Out">−</button>
+        <div class="zoom-level" id="zoomLevel">2 / 5</div>
+        <button class="zoom-btn" id="zoomIn" title="Zoom In">+</button>
+    </div>
+
+    <button class="surprise-btn" id="surpriseBtn">🎲 Surprise Me!</button>
+
+    <button class="help-btn" id="helpBtn" title="Help & Instructions">?</button>
+    <button class="trim-btn" id="trimBtn" title="Configure Prompt Trimming">✂️ Trim Settings</button>
+
+    <div class="modal-overlay" id="helpModal">
+        <div class="modal">
+            <button class="close-modal-btn" id="closeHelpModal">×</button>
+            <h2>📚 How To</h2>
+            
+            <h3>Generate Similar-Looking Character Images</h3>
+            <p>To generate consistent character images, I used the model <code>waiNSFWIllustrious_v150.safetensors</code>.</p>
+            
+            <h3>Recommended Settings</h3>
+            <p><strong>Prompts:</strong></p>
+            <ul>
+                <li><strong>Positive:</strong> masterpiece, best quality, amazing quality, flat colors, standing, looking at viewer, light smile, simple background, white background, full body,</li>
+                <li><strong>Negative:</strong> bad quality, worst quality, worst detail, sketch, censor, shiny skin, shiny clothes,</li>
+            </ul>
+            
+            <p><strong>Generation Parameters:</strong></p>
+            <ul>
+                <li>Resolution: 1024×1360</li>
+                <li>Sampler: euler_ancestral</li>
+                <li>CFG Scale: 7</li>
+                <li>Steps: 30</li>
+                <li>Scheduler: Normal</li>
+            </ul>
+            
+            <h3>Using This Tool</h3>
+            <p><strong>1.</strong> Click "Select Character Folder" and choose the folder containing your generated PNG images.</p>
+            <p><strong>2.</strong> Click any character to copy its prompt metadata to the clipboard.</p>
+            <p><strong>3.</strong> Use "🎲 Surprise Me!" for random character selection.</p>
+            <p><strong>4.</strong> Use "✂️ Trim Settings" to configure which text should be removed from prompts.</p>
+            <p><strong>5.</strong> Adjust the zoom level using the +/− controls in the bottom right corner.</p>
+            
+            <h3>Metadata Format</h3>
+            <p>This tool extracts metadata from the PNG's <code>parameters</code> text chunk, which typically contains:</p>
+            <ul>
+                <li>Positive prompt</li>
+                <li>Negative prompt (preceded by "Negative prompt:")</li>
+                <li>Generation settings (after "Steps:" - automatically trimmed by the tool)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="trimModal">
+        <div class="modal">
+            <button class="close-modal-btn" id="closeTrimModal">×</button>
+            <h2>✂️ Configure Prompt Trimming</h2>
+            
+            <p>Specify text strings that should be automatically removed from prompts when copying. This is useful for removing repetitive boilerplate text that you don't need.</p>
+            
+            <div class="trim-input-container">
+                <label>Text to Remove:</label>
+                <textarea id="trimTextarea" placeholder="standing, looking at viewer, light smile; simple background, white background"></textarea>
+                <div class="help-text">
+                    Enter text strings you want to remove from prompts. Separate multiple strings with semicolons (;). Each string will be removed independently.
+                </div>
+            </div>
+            
+            <button class="confirm-trim-btn" id="confirmTrimBtn">✓ Save Settings</button>
+        </div>
+    </div>
+
+    <div class="surprise-overlay" id="surpriseOverlay">
+        <div class="surprise-image-container">
+            <div class="surprise-text" id="surpriseText">Picking a character...</div>
+            <img class="surprise-image" id="surpriseImage" src="" alt="Random character">
+        </div>
+    </div>
+
+    <script src="node_modules/exif-js/exif.js"></script>
+    <script>
+        const grid = document.getElementById('grid');
+        const info = document.getElementById('info');
+        const notification = document.getElementById('notification');
+        const selectFolderBtn = document.getElementById('selectFolder');
+        const zoomInBtn = document.getElementById('zoomIn');
+        const zoomOutBtn = document.getElementById('zoomOut');
+        const zoomLevelDisplay = document.getElementById('zoomLevel');
+        const surpriseBtn = document.getElementById('surpriseBtn');
+        const surpriseOverlay = document.getElementById('surpriseOverlay');
+        const surpriseImage = document.getElementById('surpriseImage');
+        const surpriseText = document.getElementById('surpriseText');
+        const helpBtn = document.getElementById('helpBtn');
+        const helpModal = document.getElementById('helpModal');
+        const closeHelpModal = document.getElementById('closeHelpModal');
+        const trimBtn = document.getElementById('trimBtn');
+        const trimModal = document.getElementById('trimModal');
+        const closeTrimModal = document.getElementById('closeTrimModal');
+        const trimTextarea = document.getElementById('trimTextarea');
+        const confirmTrimBtn = document.getElementById('confirmTrimBtn');
+
+        let characters = [];
+        let currentFolderPath = null;
+        let currentZoom = 2; // Default to zoom level 2 (base size)
+        let trimStrings = ['standing, looking at viewer, light smile, simple background, white background, full body,'];
+
+        // Load saved zoom level
+        const savedZoom = localStorage.getItem('zoomLevel');
+        if (savedZoom) {
+            currentZoom = parseInt(savedZoom);
+        }
+        updateZoom();
+
+        // Load saved trim strings
+        const savedTrimStrings = localStorage.getItem('trimStrings');
+        if (savedTrimStrings) {
+            trimStrings = JSON.parse(savedTrimStrings);
+        }
+        updateTrimTextarea();
+
+        // Help modal
+        helpBtn.addEventListener('click', () => {
+            helpModal.classList.add('active');
+        });
+
+        closeHelpModal.addEventListener('click', () => {
+            helpModal.classList.remove('active');
+        });
+
+        helpModal.addEventListener('click', (e) => {
+            if (e.target === helpModal) {
+                helpModal.classList.remove('active');
+            }
+        });
+
+        // Trim modal
+        trimBtn.addEventListener('click', () => {
+            trimModal.classList.add('active');
+        });
+
+        closeTrimModal.addEventListener('click', () => {
+            trimModal.classList.remove('active');
+        });
+
+        trimModal.addEventListener('click', (e) => {
+            if (e.target === trimModal) {
+                trimModal.classList.remove('active');
+            }
+        });
+
+        confirmTrimBtn.addEventListener('click', () => {
+            const input = trimTextarea.value.trim();
+            if (input) {
+                trimStrings = input.split(';').map(s => s.trim()).filter(s => s.length > 0);
+            } else {
+                trimStrings = [];
+            }
+            
+            // Save to localStorage
+            localStorage.setItem('trimStrings', JSON.stringify(trimStrings));
+            
+            // Visual feedback
+            trimBtn.classList.add('confirmed');
+            setTimeout(() => trimBtn.classList.remove('confirmed'), 600);
+            
+            // Close modal
+            trimModal.classList.remove('active');
+            
+            // Show notification
+            notification.textContent = '✓ Trim settings saved!';
+            notification.classList.add('show');
+            setTimeout(() => {
+                notification.classList.remove('show');
+                notification.textContent = '✓ Copied to clipboard!';
+            }, 2000);
+        });
+
+        function updateTrimTextarea() {
+            trimTextarea.value = trimStrings.join('; ');
+        }
+
+        function cleanText(text) {
+            let cleaned = text;
+            trimStrings.forEach(trimStr => {
+                cleaned = cleaned.replace(trimStr, '');
+            });
+            return cleaned.trim();
+        }
+
+        // Zoom controls
+        zoomInBtn.addEventListener('click', () => {
+            if (currentZoom < 5) {
+                currentZoom++;
+                updateZoom();
+                saveZoom();
+            }
+        });
+
+        zoomOutBtn.addEventListener('click', () => {
+            if (currentZoom > 1) {
+                currentZoom--;
+                updateZoom();
+                saveZoom();
+            }
+        });
+
+        function updateZoom() {
+            document.body.className = `zoom-${currentZoom}`;
+            zoomLevelDisplay.textContent = `${currentZoom} / 5`;
+            zoomInBtn.disabled = currentZoom === 5;
+            zoomOutBtn.disabled = currentZoom === 1;
+        }
+
+        function saveZoom() {
+            localStorage.setItem('zoomLevel', currentZoom.toString());
+        }
+
+        // Surprise Me button
+        surpriseBtn.addEventListener('click', async () => {
+            if (characters.length === 0) {
+                showError('Please load characters first!');
+                return;
+            }
+
+            surpriseBtn.disabled = true;
+            surpriseOverlay.classList.add('active');
+            surpriseImage.classList.remove('final');
+            surpriseText.textContent = 'Picking a character...';
+
+            // Animate 10 random images rapidly
+            const animationCount = 10;
+            const animationDelay = 100; // ms between images
+
+            for (let i = 0; i < animationCount; i++) {
+                const randomChar = characters[Math.floor(Math.random() * characters.length)];
+                surpriseImage.src = URL.createObjectURL(randomChar.file);
+                await new Promise(resolve => setTimeout(resolve, animationDelay));
+            }
+
+            // Pick the final random character
+            const finalChar = characters[Math.floor(Math.random() * characters.length)];
+            surpriseImage.src = URL.createObjectURL(finalChar.file);
+            surpriseImage.classList.add('final');
+            surpriseText.textContent = '✨ Your character! ✨';
+
+            // Copy to clipboard
+            await navigator.clipboard.writeText(finalChar.metadata);
+
+            // Wait a bit to show the final character, then close overlay
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            surpriseOverlay.classList.remove('active');
+            surpriseBtn.disabled = false;
+
+            // Show copied notification
+            notification.classList.add('show');
+            setTimeout(() => notification.classList.remove('show'), 2000);
+        });
+
+        // Wait for DOM to be ready
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load saved folder path on startup
+            if (window.electronAPI) {
+                window.electronAPI.onSavedFolderPath((folderPath) => {
+                    currentFolderPath = folderPath;
+                    loadCharactersFromFolder(folderPath);
+                    info.textContent = `Loaded from: ${folderPath}`;
+                });
+            }
+        });
+
+        selectFolderBtn.addEventListener('click', async () => {
+            const folderPath = await window.electronAPI.selectFolder();
+            if (folderPath) {
+                currentFolderPath = folderPath;
+                loadCharactersFromFolder(folderPath);
+                info.textContent = `Selected: ${folderPath}`;
+            }
+        });
+
+        async function loadCharactersFromFolder(folderPath) {
+            grid.innerHTML = '<div class="loading">Loading characters...</div>';
+            characters = [];
+
+            try {
+                const files = await window.electronAPI.readFolder(folderPath);
+                
+                for (const fileData of files) {
+                    const base64 = fileData.data;
+                    const binary = atob(base64);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) {
+                        bytes[i] = binary.charCodeAt(i);
+                    }
+                    
+                    const blob = new Blob([bytes], { type: 'image/png' });
+                    const file = new File([blob], fileData.name, { type: 'image/png' });
+                    
+                    const metadata = await extractMetadata(file);
+                    
+                    if (metadata) {
+                        characters.push({
+                            file: file,
+                            metadata: metadata,
+                            name: fileData.name
+                        });
+                    }
+                }
+
+                displayCharacters();
+            } catch (err) {
+                showError('Error loading characters: ' + err.message);
+            }
+        }
+
+        async function extractMetadata(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const arrayBuffer = e.target.result;
+                        const bytes = new Uint8Array(arrayBuffer);
+                        
+                        console.log('Processing file:', file.name);
+                        
+                        // Read PNG text chunks
+                        const pngText = readPNGTextChunks(bytes);
+                        console.log('PNG text chunks:', pngText);
+                        
+                        // Look for 'parameters' key in PNG chunks
+                        let text = pngText['parameters'] || pngText['Parameters'] || pngText['comment'] || pngText['Comment'];
+                        
+                        if (text) {
+                            console.log('Found metadata in PNG chunks:', text.substring(0, 100));
+                            // Extract positive and negative prompts
+                            const negativeIndex = text.indexOf('Negative prompt:');
+                            const stepsIndex = text.indexOf('Steps:');
+                            
+                            let positivePrompt = '';
+                            let negativePrompt = '';
+                            
+                            if (negativeIndex !== -1) {
+                                // Get everything before "Negative prompt:"
+                                positivePrompt = text.substring(0, negativeIndex).trim();
+                                
+                                if (stepsIndex !== -1 && stepsIndex > negativeIndex) {
+                                    // Get text between "Negative prompt:" and "Steps:"
+                                    negativePrompt = text.substring(negativeIndex + 16, stepsIndex).trim();
+                                }
+                            } else if (stepsIndex !== -1) {
+                                // No negative prompt, just get everything before Steps:
+                                positivePrompt = text.substring(0, stepsIndex).trim();
+                            } else {
+                                positivePrompt = text.trim();
+                            }
+                            
+                            // Combine with newline
+                            const finalText = negativePrompt ? positivePrompt + '\n' + negativePrompt : positivePrompt;
+                            
+                            // Remove unwanted strings using cleanText function
+                            const cleanedText = cleanText(finalText);
+                            
+                            resolve(cleanedText);
+                        } else {
+                            // Try EXIF as fallback
+                            const img = new Image();
+                            img.onload = function() {
+                                EXIF.getData(img, function() {
+                                    const allTags = EXIF.getAllTags(this);
+                                    console.log('EXIF tags:', allTags);
+                                    
+                                    const userComment = EXIF.getTag(this, "UserComment");
+                                    const imageDescription = EXIF.getTag(this, "ImageDescription");
+                                    const parameters = EXIF.getTag(this, "parameters");
+                                    
+                                    let exifText = parameters || userComment || imageDescription;
+                                    
+                                    if (exifText) {
+                                        console.log('Found metadata in EXIF:', exifText.substring(0, 100));
+                                        // Extract positive and negative prompts
+                                        const negativeIndex = exifText.indexOf('Negative prompt:');
+                                        const stepsIndex = exifText.indexOf('Steps:');
+                                        
+                                        let positivePrompt = '';
+                                        let negativePrompt = '';
+                                        
+                                        if (negativeIndex !== -1) {
+                                            positivePrompt = exifText.substring(0, negativeIndex).trim();
+                                            
+                                            if (stepsIndex !== -1 && stepsIndex > negativeIndex) {
+                                                negativePrompt = exifText.substring(negativeIndex + 16, stepsIndex).trim();
+                                            }
+                                        } else if (stepsIndex !== -1) {
+                                            positivePrompt = exifText.substring(0, stepsIndex).trim();
+                                        } else {
+                                            positivePrompt = exifText.trim();
+                                        }
+                                        
+                                        const finalText = negativePrompt ? positivePrompt + '\n' + negativePrompt : positivePrompt;
+                                        
+                                        // Remove unwanted strings using cleanText function
+                                        const cleanedText = cleanText(finalText);
+                                        
+                                        resolve(cleanedText);
+                                    } else {
+                                        console.warn('No metadata found in', file.name);
+                                        resolve(null);
+                                    }
+                                });
+                            };
+                            img.src = URL.createObjectURL(file);
+                        }
+                    } catch (err) {
+                        console.error('Error extracting metadata:', err);
+                        resolve(null);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function readPNGTextChunks(bytes) {
+            const chunks = {};
+            let pos = 8; // Skip PNG signature
+            
+            while (pos < bytes.length) {
+                // Read chunk length
+                const length = (bytes[pos] << 24) | (bytes[pos + 1] << 16) | (bytes[pos + 2] << 8) | bytes[pos + 3];
+                pos += 4;
+                
+                // Read chunk type
+                const type = String.fromCharCode(bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]);
+                pos += 4;
+                
+                // Read chunk data
+                if (type === 'tEXt' || type === 'iTXt' || type === 'zTXt') {
+                    const chunkData = bytes.slice(pos, pos + length);
+                    
+                    // Find null terminator for keyword
+                    let nullPos = 0;
+                    while (nullPos < chunkData.length && chunkData[nullPos] !== 0) {
+                        nullPos++;
+                    }
+                    
+                    const keyword = String.fromCharCode.apply(null, Array.from(chunkData.slice(0, nullPos)));
+                    const textData = String.fromCharCode.apply(null, Array.from(chunkData.slice(nullPos + 1)));
+                    
+                    chunks[keyword] = textData;
+                }
+                
+                pos += length + 4; // Skip data and CRC
+                
+                // Stop at IEND chunk
+                if (type === 'IEND') break;
+            }
+            
+            return chunks;
+        }
+
+        function displayCharacters() {
+            grid.innerHTML = '';
+            
+            if (characters.length === 0) {
+                info.textContent = 'No PNG files with metadata found in the selected folder';
+                return;
+            }
+
+            info.textContent = `${characters.length} characters loaded`;
+
+            characters.forEach((char, index) => {
+                const card = document.createElement('div');
+                card.className = 'character-card';
+                
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(char.file);
+                img.alt = char.name;
+                
+                card.appendChild(img);
+                card.addEventListener('click', () => copyToClipboard(char, card));
+                
+                grid.appendChild(card);
+            });
+        }
+
+        async function copyToClipboard(char, cardElement) {
+            try {
+                await navigator.clipboard.writeText(char.metadata);
+                
+                // Visual feedback
+                cardElement.classList.add('copied');
+                setTimeout(() => cardElement.classList.remove('copied'), 600);
+                
+                // Show notification
+                notification.classList.add('show');
+                setTimeout(() => notification.classList.remove('show'), 2000);
+            } catch (err) {
+                showError('Failed to copy to clipboard: ' + err.message);
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            document.querySelector('.container').insertBefore(errorDiv, grid);
+            setTimeout(() => errorDiv.remove(), 5000);
+        }
+    </script>
+</body>
+</html>
